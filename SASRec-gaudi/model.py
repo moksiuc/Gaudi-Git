@@ -27,6 +27,7 @@ class SASRec(torch.nn.Module):
         self.user_num = user_num
         self.item_num = item_num
         self.dev = args.device
+        print(f"{self.dev = }")
         self.embedding_dim = args.hidden_units
         self.nn_parameter = args.nn_parameter
 
@@ -37,6 +38,19 @@ class SASRec(torch.nn.Module):
             self.item_emb = torch.nn.Embedding(self.item_num+1, args.hidden_units, padding_idx=0)
             self.item_emb.weight.data.normal_(0.0,1)
             self.pos_emb = torch.nn.Embedding(args.maxlen, args.hidden_units)
+
+            print(f"{args.maxlen = }")
+            print(f"{args.hidden_units = }")
+            print(f"{self.pos_emb = }")
+            print(f"{torch.max(self.pos_emb.weight) = }")
+
+            self.item_emb_cpu = torch.nn.Embedding(self.item_num+1, args.hidden_units, padding_idx=0)
+            self.item_emb_cpu.weight.data = self.item_emb.weight.data.clone()
+            self.pos_emb_cpu = torch.nn.Embedding(args.maxlen, args.hidden_units)
+            self.pos_emb_cpu.weight.data = self.pos_emb.weight.data.clone()
+
+            print(f"{self.pos_emb_cpu = }")
+            print(f"{torch.max(self.pos_emb_cpu.weight) = }")
 
         self.emb_dropout = torch.nn.Dropout(p=args.dropout_rate)
 
@@ -79,7 +93,35 @@ class SASRec(torch.nn.Module):
         if self.nn_parameter:
             seqs += self.pos_emb[torch.LongTensor(positions).to(self.dev)]
         else:
-            seqs += self.pos_emb(torch.LongTensor(positions).to(self.dev))
+            in_cpu = torch.LongTensor(positions).to('cpu')
+            in_dev = torch.LongTensor(positions).to(self.dev)
+
+            print(f"{torch.max(in_cpu) = }")
+            print(f"{torch.max(in_dev) = }")
+
+            print(f"{self.pos_emb_cpu = }")
+            print(f"{self.pos_emb = }")
+
+            print(f"{torch.max(self.pos_emb_cpu.weight) = }")
+            print(f"{torch.max(self.pos_emb.weight) = }")
+
+            self.pos_emb_cpu.weight = torch.nn.Parameter(self.pos_emb.weight.detach().to('cpu'))
+
+            print(f"{torch.max(self.pos_emb_cpu.weight) = }")
+            print(f"{torch.max(self.pos_emb.weight) = }")
+
+            seq_cpu = self.pos_emb_cpu(in_cpu)
+            seq_dev = self.pos_emb(in_dev)
+
+            print(f"{torch.max(seq_cpu) = }")
+            print(f"{torch.max(seq_dev) = }")
+
+            seq_dev_cpu = seq_dev.to('cpu')
+            diff = torch.abs(seq_cpu - seq_dev_cpu)
+            print(f"{torch.max(diff) = }, {torch.argmax(diff) = }")
+
+            seqs += seq_cpu.to(self.dev)
+            #seqs += self.pos_emb(torch.LongTensor(positions).to(self.dev))
 
         seqs = self.emb_dropout(seqs)
 
