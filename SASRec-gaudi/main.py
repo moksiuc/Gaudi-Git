@@ -3,6 +3,7 @@ import time
 import torch
 import argparse
 import numpy as np
+from collections.abc import Iterable
 
 ###GAUDI
 import habana_frameworks.torch.core as htcore
@@ -119,6 +120,69 @@ if __name__ == '__main__':
 
             #GAUDI
             loss.backward()
+
+            print(f"Cheking backward, number of embeddings = {len(model.back_state)}")
+
+            for state in model.back_state:
+                state["ref"].backward(gradient=torch.ones_like(state["grad_out"]))
+
+                cmp = np.allclose(
+                    state["grad_weight"].numpy(),
+                    state["emb_obj_cpu"].weight.grad.numpy(),
+                    atol=0,
+                    rtol=0,
+                    equal_nan=True,
+                )
+
+                if not cmp:
+                    print(f"{cmp = }")
+
+                    def print_tensors_internal(tensors, index=[]):
+                        if isinstance(tensors[0], Iterable):
+                            for i, (tensors_sub) in enumerate(zip(*tensors)):
+                                print_tensors_internal(tensors_sub, index + [i])
+                        else:
+                            len = 22
+                            s = ""
+                            for v in tensors:
+                                s += f"{v:{len}}"
+                            print(f"{index} {s}")
+
+                    def print_tensors(labels, tensors):
+                        for l, t in zip(labels, tensors):
+                            print(f"{l} : {t.shape}")
+                        print_tensors_internal([t.tolist() for t in tensors])
+
+                    for row in state["input"].tolist():
+                        row_str = "["
+                        for col in row:
+                            row_str += f"{col}, "
+                        row_str += "],"
+                        print(row_str)
+
+                    exit()
+
+                    print_tensors(["input"], [state["input"]])
+
+                    print_tensors(["out", "grad_out"], [state["ref"].detach().numpy(), state["grad_out"].numpy()])
+
+                    print_tensors(["grad_weight", "emb_obj_cpu.weight.grad"],
+                                  [state["grad_weight"].numpy(),
+                                   state["emb_obj_cpu"].weight.grad.numpy()])
+
+                    shape = state["grad_weight"].shape
+                    for r in range(shape[0]):
+                        for c in range(shape[1]):
+                            grad_hpu = state["grad_weight"].numpy()[r][c]
+                            grad_cpu = state["emb_obj_cpu"].weight.grad.numpy()[r][c]
+                            if grad_hpu != grad_cpu:
+                                print(f'({r}, {c}) {grad_hpu = }, {grad_cpu = }')
+
+                    exit()
+
+            model.back_state = []
+
+
             if args.device =='hpu':
                 htcore.mark_step()
             adam_optimizer.step()
