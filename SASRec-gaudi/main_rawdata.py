@@ -33,15 +33,15 @@ parser.add_argument('--state_dict_path', default=None, type=str)
 args = parser.parse_args()
 
 if __name__ == '__main__':
-    
+
     # global dataset
-    
+
     if not os.path.isfile(f'./data/processed/{args.dataset}.txt'):
         print("Download Dataset")
         preprocess_raw(args.dataset)
     dataset = data_partition(args.dataset)
-    
-    
+
+
     [user_train, user_valid, user_test, usernum, itemnum] = dataset
     print('user num:', usernum, 'item num:', itemnum)
     num_batch = len(user_train) // args.batch_size
@@ -49,21 +49,21 @@ if __name__ == '__main__':
     for u in user_train:
         cc += len(user_train[u])
     print('average sequence length: %.2f' % (cc / len(user_train)))
-    
+
     if args.device =='hpu':
         args.device = torch.device('hpu')
-    
+
     # dataloader
-    sampler = WarpSampler(user_train, usernum, itemnum, batch_size=args.batch_size, maxlen=args.maxlen, n_workers=3)       
+    sampler = WarpSampler(user_train, usernum, itemnum, batch_size=args.batch_size, maxlen=args.maxlen, n_workers=3)
     # model init
     model = SASRec(usernum, itemnum, args).to(args.device)
-    
+
     for name, param in model.named_parameters():
         try:
             torch.nn.init.xavier_normal_(param.data)
         except:
             pass
-    
+
     epoch_start_idx = 1
     if args.state_dict_path is not None:
         try:
@@ -78,21 +78,21 @@ if __name__ == '__main__':
             print(args.state_dict_path)
             print('pdb enabled for your quick check, pls type exit() if you do not need it')
             import pdb; pdb.set_trace()
-    
+
     if args.inference_only:
         model.eval()
         t_test = evaluate(model, dataset, args)
         print('test (NDCG@10: %.4f, HR@10: %.4f)' % (t_test[0], t_test[1]))
-    
+
     bce_criterion = torch.nn.BCEWithLogitsLoss()
     adam_optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.98))
-    
+
     time_list = []
     loss_list = []
     T = 0.0
     t0 = time.time()
     start_time = time.time()
-    
+
     for epoch in tqdm(range(epoch_start_idx, args.num_epochs + 1)):
         model.train()
         epoch_s_time = time.time()
@@ -101,7 +101,7 @@ if __name__ == '__main__':
         for step in range(num_batch):
             u, seq, pos, neg = sampler.next_batch()
             u, seq, pos, neg = np.array(u), np.array(seq), np.array(pos), np.array(neg)
-            
+
             pos_logits, neg_logits = model(u, seq, pos, neg)
             pos_labels, neg_labels = torch.ones(pos_logits.shape, device=args.device), torch.zeros(neg_logits.shape, device=args.device)
 
@@ -109,13 +109,13 @@ if __name__ == '__main__':
             indices = np.where(pos != 0)
             loss = bce_criterion(pos_logits[indices], pos_labels[indices])
             loss += bce_criterion(neg_logits[indices], neg_labels[indices])
-            
+
             #nn.Embedding
             if args.nn_parameter:
                 loss += args.l2_emb * torch.norm(model.item_emb)
             else:
                 for param in model.item_emb.parameters(): loss += args.l2_emb * torch.norm(param)
-             
+
             #GAUDI
             loss.backward()
             if args.device =='hpu':
@@ -123,17 +123,17 @@ if __name__ == '__main__':
             adam_optimizer.step()
             if args.device =='hpu':
                 htcore.mark_step()
-            
+
             total_loss += loss.item()
             count+=1
-            
+
             if step % 100 == 0:
                 print("loss in epoch {} iteration {}: {}".format(epoch, step, loss.item()))
-        
+
         epoch_e_time = time.time()
         time_list.append(epoch_e_time - epoch_s_time)
         loss_list.append(total_loss/count)
-    
+
         if epoch % 20 == 0:
             model.eval()
             t1 = time.time() - t0
@@ -149,7 +149,7 @@ if __name__ == '__main__':
             print(str(t_valid) + ' ' + str(t_test) + '\n')
             t0 = time.time()
             model.train()
-    
+
         if epoch == args.num_epochs:
             folder = args.dataset
             fname = 'SASRec.epoch={}.lr={}.layer={}.head={}.hidden={}.maxlen={}.pth'
@@ -160,11 +160,11 @@ if __name__ == '__main__':
                 except:
                     print()
             torch.save([model.kwargs, model.state_dict()], os.path.join(folder, fname))
-    
+
     sampler.close()
     end_time = time.time()
     print("Done")
     print("Time:", end_time-start_time)
-    
+
     np.save('time.npy', np.array(time_list))
     np.save('loss.npy', np.array(loss_list))

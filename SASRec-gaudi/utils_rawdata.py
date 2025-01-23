@@ -10,7 +10,7 @@ from datetime import datetime
 from pytz import timezone
 from torch.utils.data import Dataset
 
-    
+
 # sampler for batch generation
 def random_neq(l, r, s):
     t = np.random.randint(l, r)
@@ -78,26 +78,26 @@ class WarpSampler(object):
 
 # DataSet for ddp
 class SeqDataset(Dataset):
-    def __init__(self, user_train, num_user, num_item, max_len): 
+    def __init__(self, user_train, num_user, num_item, max_len):
         self.user_train = user_train
         self.num_user = num_user
         self.num_item = num_item
         self.max_len = max_len
         print("Initializing with num_user:", num_user)
 
-        
+
     def __len__(self):
         return self.num_user
-        
+
     def __getitem__(self, idx):
         user_id = idx + 1
         seq = np.zeros([self.max_len], dtype=np.int32)
         pos = np.zeros([self.max_len], dtype=np.int32)
         neg = np.zeros([self.max_len], dtype=np.int32)
-    
+
         nxt = self.user_train[user_id][-1]
         length_idx = self.max_len - 1
-        
+
         # user의 seq set
         ts = set(self.user_train[user_id])
         for i in reversed(self.user_train[user_id][:-1]):
@@ -111,7 +111,7 @@ class SeqDataset(Dataset):
         return user_id, seq, pos, neg
 
 class SeqDataset_Inference(Dataset):
-    def __init__(self, user_train, user_valid, user_test,use_user, num_item, max_len): 
+    def __init__(self, user_train, user_valid, user_test,use_user, num_item, max_len):
         self.user_train = user_train
         self.user_valid = user_valid
         self.user_test = user_test
@@ -121,10 +121,10 @@ class SeqDataset_Inference(Dataset):
         self.use_user = use_user
         print("Initializing with num_user:", self.num_user)
 
-        
+
     def __len__(self):
         return self.num_user
-        
+
     def __getitem__(self, idx):
         user_id = self.use_user[idx]
         seq = np.zeros([self.max_len], dtype=np.int32)
@@ -154,7 +154,7 @@ def data_partition(fname, path=None):
     user_valid = {}
     user_test = {}
     # assume user/item index starting from 1
-    
+
     # f = open('./pre_train/sasrec/data/%s.txt' % fname, 'r')
     if path == None:
         f = open('./data/processed/%s.txt' % fname, 'r')
@@ -243,7 +243,7 @@ def evaluate_valid(model, dataset, args):
         users = random.sample(range(1, usernum + 1), 10000)
     else:
         users = range(1, usernum + 1)
-        
+
     for u in users:
         if len(train[u]) < 1 or len(valid[u]) < 1: continue
 
@@ -257,7 +257,7 @@ def evaluate_valid(model, dataset, args):
         rated = set(train[u])
         rated.add(0)
         item_idx = [valid[u][0]]
-        
+
         for _ in range(100):
             t = np.random.randint(1, itemnum + 1)
             while t in rated: t = np.random.randint(1, itemnum + 1)

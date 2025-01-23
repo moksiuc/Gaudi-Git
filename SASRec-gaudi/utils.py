@@ -10,7 +10,7 @@ from datetime import datetime
 from pytz import timezone
 from torch.utils.data import Dataset
 from tqdm import tqdm
-    
+
 # sampler for batch generation
 def random_neq(l, r, s):
     t = np.random.randint(l, r)
@@ -78,26 +78,26 @@ class WarpSampler(object):
 
 # DataSet for ddp
 class SeqDataset(Dataset):
-    def __init__(self, user_train, num_user, num_item, max_len): 
+    def __init__(self, user_train, num_user, num_item, max_len):
         self.user_train = user_train
         self.num_user = num_user
         self.num_item = num_item
         self.max_len = max_len
         print("Initializing with num_user:", num_user)
 
-        
+
     def __len__(self):
         return self.num_user
-        
+
     def __getitem__(self, idx):
         user_id = idx + 1
         seq = np.zeros([self.max_len], dtype=np.int32)
         pos = np.zeros([self.max_len], dtype=np.int32)
         neg = np.zeros([self.max_len], dtype=np.int32)
-    
+
         nxt = self.user_train[user_id][-1]
         length_idx = self.max_len - 1
-        
+
         # user의 seq set
         ts = set(self.user_train[user_id])
         for i in reversed(self.user_train[user_id][:-1]):
@@ -111,7 +111,7 @@ class SeqDataset(Dataset):
         return user_id, seq, pos, neg
 
 class SeqDataset_Inference(Dataset):
-    def __init__(self, user_train, user_valid, user_test,use_user, num_item, max_len): 
+    def __init__(self, user_train, user_valid, user_test,use_user, num_item, max_len):
         self.user_train = user_train
         self.user_valid = user_valid
         self.user_test = user_test
@@ -121,10 +121,10 @@ class SeqDataset_Inference(Dataset):
         self.use_user = use_user
         print("Initializing with num_user:", self.num_user)
 
-        
+
     def __len__(self):
         return self.num_user
-        
+
     def __getitem__(self, idx):
         user_id = self.use_user[idx]
         seq = np.zeros([self.max_len], dtype=np.int32)
@@ -155,9 +155,9 @@ def data_partition(fname, args):
     user_test = defaultdict(list)
     # assume user/item index starting from 1
 
-    for t in ['train','valid','test']:    
+    for t in ['train','valid','test']:
         f = open(f'./data/processed/{fname}_{t}.txt', 'r')
-        
+
         for line in f:
             u, i = line.rstrip().split(' ')
             u = int(u)
@@ -170,8 +170,8 @@ def data_partition(fname, args):
                 user_valid[u].append(i)
             elif t =='test':
                 user_test[u].append(i)
-    
-    
+
+
     if args.sampling:
         user_train_sample, user_valid_sample, user_test_sample = {}, {}, {}
         print("Sampling-----")
@@ -186,7 +186,7 @@ def data_partition(fname, args):
         user_train = defaultdict(list)
         user_valid = defaultdict(list)
         user_test = defaultdict(list)
-        
+
         usermap = dict()
         usernum = 0
         itemmap = dict()
@@ -198,7 +198,7 @@ def data_partition(fname, args):
                 usernum += 1
                 userid = usernum
                 usermap[k] = userid
-            
+
             for v_ in v:
                 if v_ in itemmap:
                     itemid = itemmap[v_]
@@ -214,7 +214,7 @@ def data_partition(fname, args):
                 usernum += 1
                 userid = usernum
                 usermap[k] = userid
-                
+
             if v[0] in itemmap:
                 itemid = itemmap[v[0]]
             else:
@@ -229,7 +229,7 @@ def data_partition(fname, args):
                 usernum += 1
                 userid = usernum
                 usermap[k] = userid
-                
+
             if v[0] in itemmap:
                 itemid = itemmap[v[0]]
             else:
@@ -237,7 +237,7 @@ def data_partition(fname, args):
                 itemid = itemnum
                 itemmap[v[0]] = itemid
             user_test[userid].append(itemid)
-        
+
 
     return [user_train, user_valid, user_test, usernum, itemnum]
 
@@ -302,7 +302,7 @@ def evaluate_valid(model, dataset, args):
         users = random.sample(range(1, usernum + 1), 10000)
     else:
         users = range(1, usernum + 1)
-        
+
     for u in users:
         if len(train[u]) < 1 or len(valid[u]) < 1: continue
 
@@ -316,7 +316,7 @@ def evaluate_valid(model, dataset, args):
         rated = set(train[u])
         rated.add(0)
         item_idx = [valid[u][0]]
-        
+
         for _ in range(100):
             t = np.random.randint(1, itemnum + 1)
             while t in rated: t = np.random.randint(1, itemnum + 1)

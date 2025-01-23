@@ -18,7 +18,7 @@ class PointWiseFeedForward(torch.nn.Module):
         outputs = outputs.transpose(-1, -2)
         outputs += inputs
         return outputs
-    
+
 class SASRec(torch.nn.Module):
     def __init__(self, user_num, item_num, args):
         super(SASRec, self).__init__()
@@ -29,7 +29,7 @@ class SASRec(torch.nn.Module):
         self.dev = args.device
         self.embedding_dim = args.hidden_units
         self.nn_parameter = args.nn_parameter
-        
+
         if self.nn_parameter:
             self.item_emb = nn.Parameter(torch.normal(0,1, size = (self.item_num+1, args.hidden_units)))
             self.pos_emb = nn.Parameter(torch.normal(0,1, size=(args.maxlen, args.hidden_units)))
@@ -48,8 +48,8 @@ class SASRec(torch.nn.Module):
         self.last_layernorm = torch.nn.LayerNorm(args.hidden_units, eps=1e-8)
 
         self.args =args
-        
-        
+
+
         for _ in range(args.num_blocks):
             new_attn_layernorm = torch.nn.LayerNorm(args.hidden_units, eps=1e-8)
             self.attention_layernorms.append(new_attn_layernorm)
@@ -72,15 +72,15 @@ class SASRec(torch.nn.Module):
         else:
             seqs = self.item_emb(torch.LongTensor(log_seqs).to(self.dev))
             seqs *= self.item_emb.embedding_dim ** 0.5
-        
+
         positions = np.tile(np.array(range(log_seqs.shape[1])), [log_seqs.shape[0], 1])
-        
+
         #nn.Embedding
         if self.nn_parameter:
             seqs += self.pos_emb[torch.LongTensor(positions).to(self.dev)]
         else:
             seqs += self.pos_emb(torch.LongTensor(positions).to(self.dev))
-            
+
         seqs = self.emb_dropout(seqs)
 
         timeline_mask = torch.BoolTensor(log_seqs == 0).to(self.dev)
@@ -92,7 +92,7 @@ class SASRec(torch.nn.Module):
         for i in range(len(self.attention_layers)):
             seqs = torch.transpose(seqs, 0, 1)
             Q = self.attention_layernorms[i](seqs)
-            mha_outputs, _ = self.attention_layers[i](Q, seqs, seqs, 
+            mha_outputs, _ = self.attention_layers[i](Q, seqs, seqs,
                                             attn_mask=attention_mask)
 
             seqs = Q + mha_outputs
@@ -110,7 +110,7 @@ class SASRec(torch.nn.Module):
         if mode == 'log_only':
             log_feats = log_feats[:, -1, :]
             return log_feats
-        
+
         #nn.Embedding
         if self.nn_parameter:
             pos_embs = self.item_emb[torch.LongTensor(pos_seqs).to(self.dev)]
@@ -139,7 +139,7 @@ class SASRec(torch.nn.Module):
             item_embs = self.item_emb[torch.LongTensor(item_indices).to(self.dev)]
         else:
             item_embs = self.item_emb(torch.LongTensor(item_indices).to(self.dev))
-    
+
         logits = item_embs.matmul(final_feat.unsqueeze(-1)).squeeze(-1)
 
         return logits
