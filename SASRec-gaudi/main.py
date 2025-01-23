@@ -59,11 +59,18 @@ if __name__ == '__main__':
     # model init
     model = SASRec(usernum, itemnum, args).to(args.device)
 
+    print(f"{torch.max(model.pos_emb_cpu.weight) = }")
+    print(f"{torch.max(model.pos_emb.weight) = }")
+
     for name, param in model.named_parameters():
         try:
+            print(f"{name = }")
             torch.nn.init.xavier_normal_(param.data)
         except:
             pass
+
+    print(f"{torch.max(model.pos_emb_cpu.weight) = }")
+    print(f"{torch.max(model.pos_emb.weight) = }")
 
     epoch_start_idx = 1
     if args.state_dict_path is not None:
@@ -93,6 +100,8 @@ if __name__ == '__main__':
     T = 0.0
     t0 = time.time()
     start_time = time.time()
+
+    print(f"{args.nn_parameter = }")
 
     for epoch in tqdm(range(epoch_start_idx, args.num_epochs + 1)):
         model.train()
